@@ -1,6 +1,6 @@
 [package]
 name = "logcall"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2021"
 description = "An attribute macro that logs the function return value."
 repository = "https://github.com/fast/logcall"
@@ -14,22 +14,22 @@ license = "MIT"
 proc-macro = true
 
 [dependencies]
-proc-macro-error = "1"
-proc-macro2 = "1"
-quote = "1"
-syn = { version = "1.0.84", features = [
-  "full",
-  "parsing",
-  "extra-traits",
-  "proc-macro",
-  "visit-mut",
+proc-macro-error = { version = "1" }
+proc-macro2 = { version = "1" }
+quote = { version = "1" }
+syn = { version = "1", features = [
+    "full",
+    "parsing",
+    "extra-traits",
+    "proc-macro",
+    "visit-mut",
 ] }
 
 [dev-dependencies]
-trybuild = "1"
-log = "0.4"
+async-trait = { version = "0.1" }
+fastrace = { version = "0.7" }
+log = { version = "0.4" }
+logforth = { version = "0.19" }
+pollster = { version = "0.4" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-env_logger = "0.10.0"
-async-trait = "0.1.70"
-pollster = "0.3"
-minitrace = "0.6"
+trybuild = { version = "1" }

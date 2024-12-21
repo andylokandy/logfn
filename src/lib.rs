@@ -5,14 +5,30 @@
 // The following code reused the `async_trait` probes from [tokio-tracing](https://github.com/tokio-rs/tracing/blob/6a61897a5e834988ad9ac709e28c93c4dbf29116/tracing-attributes/src/expand.rs).
 
 extern crate proc_macro;
-
 #[macro_use]
 extern crate proc_macro_error;
 
 use proc_macro2::Span;
 use syn::spanned::Spanned;
+use syn::AttributeArgs;
+use syn::Block;
+use syn::Expr;
+use syn::ExprAsync;
+use syn::ExprCall;
+use syn::FnArg;
+use syn::Generics;
 use syn::Ident;
-use syn::*;
+use syn::Item;
+use syn::ItemFn;
+use syn::Lit;
+use syn::Meta;
+use syn::MetaNameValue;
+use syn::NestedMeta;
+use syn::Pat;
+use syn::PatType;
+use syn::Path;
+use syn::Signature;
+use syn::Stmt;
 
 enum Args {
     Simple {
@@ -364,19 +380,19 @@ struct AsyncTraitInfo<'a> {
 // to find if it matches the pattern
 // `async fn foo<...>(...) {...}; Box::pin(foo<...>(...))` (<=0.1.43), or if
 // it matches `Box::pin(async move { ... }) (>=0.1.44). We the return the
-// statement that must be instrumented, along with some other informations.
+// statement that must be instrumented, along with some other information.
 // 'gen_body' will then be able to use that information to instrument the
 // proper function/future.
 // (this follows the approach suggested in
 // https://github.com/dtolnay/async-trait/issues/45#issuecomment-571245673)
 fn get_async_trait_info(block: &Block, block_is_async: bool) -> Option<AsyncTraitInfo<'_>> {
-    // are we in an async context? If yes, this isn't a async_trait-like pattern
+    // are we in an async context? If yes, this isn't an async_trait-like pattern
     if block_is_async {
         return None;
     }
 
     // list of async functions declared inside the block
-    let inside_funs = block.stmts.iter().filter_map(|stmt| {
+    let inside_fns = block.stmts.iter().filter_map(|stmt| {
         if let Stmt::Item(Item::Fn(fun)) = &stmt {
             // If the function is async, this is a candidate
             if fun.sig.asyncness.is_some() {
@@ -414,8 +430,8 @@ fn get_async_trait_info(block: &Block, block_is_async: bool) -> Option<AsyncTrai
     }
 
     // Does the call take an argument? If it doesn't,
-    // it's not gonna compile anyway, but that's no reason
-    // to (try to) perform an out of bounds access
+    // it's not going to compile anyway, but that's no reason
+    // to (try to) perform an out-of-bounds access
     if outside_args.is_empty() {
         return None;
     }
@@ -444,9 +460,9 @@ fn get_async_trait_info(block: &Block, block_is_async: bool) -> Option<AsyncTrai
         _ => return None,
     };
 
-    // Was that function defined inside of the current block?
+    // Was that function defined inside the current block?
     // If so, retrieve the statement where it was declared and the function itself
-    let (stmt_func_declaration, _) = inside_funs
+    let (stmt_func_declaration, _) = inside_fns
         .into_iter()
         .find(|(_, fun)| fun.sig.ident == func_name)?;
 
