@@ -9,8 +9,9 @@ extern crate proc_macro;
 extern crate proc_macro_error;
 
 use proc_macro2::Span;
+use syn::parse::Parse;
+use syn::parse::ParseStream;
 use syn::spanned::Spanned;
-use syn::AttributeArgs;
 use syn::Block;
 use syn::Expr;
 use syn::ExprAsync;
@@ -20,16 +21,15 @@ use syn::Generics;
 use syn::Ident;
 use syn::Item;
 use syn::ItemFn;
-use syn::Lit;
-use syn::Meta;
-use syn::MetaNameValue;
-use syn::NestedMeta;
+use syn::LitStr;
 use syn::Pat;
 use syn::PatType;
 use syn::Path;
 use syn::Signature;
 use syn::Stmt;
+use syn::Token;
 
+#[derive(Debug)]
 enum Args {
     Simple {
         level: String,
@@ -42,63 +42,104 @@ enum Args {
     },
 }
 
-impl Args {
-    fn parse(input: AttributeArgs) -> Args {
-        let mut simple_level = None;
-        let mut ok_level = None;
-        let mut err_level = None;
-        let mut input_format = None;
+impl Parse for Args {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        #[derive(Default)]
+        struct ArgContext {
+            simple_level: Option<String>,
+            ok_level: Option<String>,
+            err_level: Option<String>,
+            input_format: Option<String>,
+        }
 
-        for arg in input {
-            match arg {
-                NestedMeta::Meta(Meta::NameValue(MetaNameValue {
-                    path,
-                    lit: Lit::Str(lit_str),
-                    ..
-                })) => {
-                    let ident = path.get_ident().unwrap().to_string();
-                    match ident.as_str() {
-                        "ok" => {
-                            ok_level = Some(lit_str.value());
-                        }
-                        "err" => {
-                            err_level = Some(lit_str.value());
-                        }
-                        "input" => {
-                            input_format = Some(lit_str.value());
-                        }
-                        _ => {
-                            abort!(ident.span(), "unexpected argument");
-                        }
+        impl Parse for ArgContext {
+            fn parse(input: ParseStream) -> syn::Result<Self> {
+                let mut ctx = ArgContext::default();
+                loop {
+                    if input.is_empty() {
+                        return Ok(ctx);
                     }
-                }
-                NestedMeta::Lit(Lit::Str(lit_str)) => {
-                    if simple_level.is_some() {
-                        abort!(lit_str.span(), "level has already been specified");
+
+                    if input.peek(LitStr) {
+                        let level = input.parse::<LitStr>()?;
+                        if ctx.simple_level.is_some() {
+                            return Err(syn::Error::new(
+                                level.span(),
+                                "simple_level specified multiple times",
+                            ));
+                        }
+                        ctx.simple_level = Some(level.value());
+                    } else if input.peek(Ident) {
+                        let ident = input.parse::<Ident>()?;
+                        input.parse::<Token![=]>()?;
+                        let level = input.parse::<LitStr>()?;
+                        match ident.to_string().as_str() {
+                            "ok" => {
+                                if ctx.ok_level.is_some() {
+                                    return Err(syn::Error::new(
+                                        level.span(),
+                                        "ok_level specified multiple times",
+                                    ));
+                                }
+                                ctx.ok_level = Some(level.value());
+                            }
+                            "err" => {
+                                if ctx.err_level.is_some() {
+                                    return Err(syn::Error::new(
+                                        level.span(),
+                                        "err_level specified multiple times",
+                                    ));
+                                }
+                                ctx.err_level = Some(level.value());
+                            }
+                            "input" => {
+                                if ctx.input_format.is_some() {
+                                    return Err(syn::Error::new(
+                                        level.span(),
+                                        "input specified multiple times",
+                                    ));
+                                }
+                                ctx.input_format = Some(level.value());
+                            }
+                            _ => {
+                                return Err(syn::Error::new(
+                                    ident.span(),
+                                    "unknown attribute argument",
+                                ))
+                            }
+                        }
+                    } else {
+                        return Err(input.error("unexpected token"));
                     }
-                    simple_level = Some(lit_str.value());
-                }
-                _ => {
-                    abort!(arg.span(), "unexpected argument");
+
+                    if input.is_empty() {
+                        return Ok(ctx);
+                    }
+                    input.parse::<Token![,]>()?;
                 }
             }
         }
 
+        let ArgContext {
+            simple_level,
+            ok_level,
+            err_level,
+            input_format,
+        } = input.parse::<ArgContext>()?;
         if ok_level.is_some() || err_level.is_some() {
             if simple_level.is_some() {
                 abort_call_site!("plain level cannot be specified with `ok` or `err` levels");
             }
-
-            Args::Result {
+            Ok(Args::Result {
                 ok_level,
                 err_level,
                 input_format,
-            }
+            })
         } else {
-            Args::Simple {
+            Ok(Args::Simple {
                 level: simple_level.unwrap_or_else(|| "debug".to_string()),
                 input_format,
-            }
+            })
         }
     }
 }
@@ -111,7 +152,8 @@ pub fn logcall(
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(item as ItemFn);
-    let args = Args::parse(syn::parse_macro_input!(args as AttributeArgs));
+
+    let args = syn::parse_macro_input!(args as Args);
 
     // check for async_trait-like patterns in the block, and instrument
     // the future instead of the wrapper
@@ -407,7 +449,7 @@ fn get_async_trait_info(block: &Block, block_is_async: bool) -> Option<AsyncTrai
     // `trait` or `impl` declaration is annotated by async_trait,
     // this is quite likely the point where the future is pinned)
     let (last_expr_stmt, last_expr) = block.stmts.iter().rev().find_map(|stmt| {
-        if let Stmt::Expr(expr) = stmt {
+        if let Stmt::Expr(expr, ..) = stmt {
             Some((stmt, expr))
         } else {
             None

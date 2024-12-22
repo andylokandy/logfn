@@ -17,7 +17,7 @@ proc-macro = true
 proc-macro-error = { version = "1" }
 proc-macro2 = { version = "1" }
 quote = { version = "1" }
-syn = { version = "1", features = [
+syn = { version = "2", features = [
     "full",
     "parsing",
     "extra-traits",
