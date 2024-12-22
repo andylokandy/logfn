@@ -1,4 +1,4 @@
-error: level has already been specified
+error: simple_level specified multiple times
  --> tests/ui/err/has-too-many-arguments.rs:1:28
   |
 1 | #[logcall::logcall("info", "error")]

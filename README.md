@@ -1,10 +1,10 @@
 # logcall
 
 [![Crates.io](https://img.shields.io/crates/v/logcall?style=flat-square&logo=rust)](https://crates.io/crates/logcall)
-[![Crates.io](https://img.shields.io/crates/d/logcall?style=flat-square&logo=rust)](https://crates.io/crates/logcall)
+[![Downloads](https://img.shields.io/crates/d/logcall?style=flat-square&logo=rust)](https://crates.io/crates/logcall)
 [![Documentation](https://img.shields.io/docsrs/logcall?style=flat-square&logo=rust)](https://docs.rs/logcall/)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/fast/logcall/ci.yml?style=flat-square&logo=github)](https://github.com/fast/logcall/actions)
-[![Crates.io](https://img.shields.io/crates/l/logcall?style=flat-square&logo=)](https://crates.io/crates/logcall)
+[![License](https://img.shields.io/crates/l/logcall?style=flat-square&logo=)](https://crates.io/crates/logcall)
 
 `logcall` is a Rust procedural macro crate designed to automatically log function calls, their inputs, and their outputs. This macro facilitates debugging and monitoring by providing detailed logs of function executions with minimal boilerplate code.
 
@@ -25,6 +25,8 @@ Import the `logcall` crate and use the macro to annotate your functions:
 
 ```rust
 use logcall::logcall;
+use logforth::append;
+use logforth::filter::EnvFilter;
 
 /// Logs the function call at the default `debug` level.
 #[logcall]
@@ -65,9 +67,12 @@ fn subtract(a: i32, b: i32) -> i32 {
 }
 
 fn main() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Trace)
-        .init();
+    logforth::builder()
+        .dispatch(|d| {
+            d.filter(EnvFilter::from_default_env_or("trace"))
+                .append(append::Stderr::default())
+        })
+        .apply();
 
     add(2, 3);
     multiply(2, 3);
@@ -81,12 +86,12 @@ fn main() {
 
 When the `main` function runs, it initializes the logger and logs each function call as specified:
 
-```rust,ignore
-[2024-06-19T15:01:23Z DEBUG main] main::add(a = 2, b = 3) => 5
-[2024-06-19T15:01:23Z INFO  main] main::multiply(a = 2, b = 3) => 6
-[2024-06-19T15:01:23Z ERROR main] main::divide(a = 2, b = 0) => Err("Division by zero")
-[2024-06-19T15:01:23Z ERROR main] main::divide2(a = 2, b = 0) => Err("Division by zero")
-[2024-06-19T15:01:23Z DEBUG main] main::subtract(a = 3, ..) => 1
+```plaintext
+2024-12-22T07:02:59.787586+08:00[Asia/Shanghai] DEBUG main: main.rs:6 main::add(a = 2, b = 3) => 5
+2024-12-22T07:02:59.816839+08:00[Asia/Shanghai]  INFO main: main.rs:12 main::multiply(a = 2, b = 3) => 6
+2024-12-22T07:02:59.816929+08:00[Asia/Shanghai] ERROR main: main.rs:18 main::divide(a = 2, b = 0) => Err("Division by zero")
+2024-12-22T07:02:59.816957+08:00[Asia/Shanghai] ERROR main: main.rs:28 main::divide2(a = 2, b = 0) => Err("Division by zero")
+2024-12-22T07:02:59.816980+08:00[Asia/Shanghai] DEBUG main: main.rs:38 main::subtract(a = 3, ..) => 1
 ```
 
 ## Customization

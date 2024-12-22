@@ -1,9 +1,9 @@
 #[logcall::logcall]
-#[minitrace::trace]
+#[fastrace::trace]
 fn f() {}
 
 #[logcall::logcall]
-#[minitrace::trace]
+#[fastrace::trace]
 async fn g() {
     std::future::ready(1).await;
 }

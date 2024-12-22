@@ -1,4 +1,6 @@
 use logcall::logcall;
+use logforth::append;
+use logforth::filter::EnvFilter;
 
 /// Logs the function call at the default `debug` level.
 #[logcall]
@@ -39,9 +41,12 @@ fn subtract(a: i32, b: i32) -> i32 {
 }
 
 fn main() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Trace)
-        .init();
+    logforth::builder()
+        .dispatch(|d| {
+            d.filter(EnvFilter::from_default_env_or("trace"))
+                .append(append::Stderr::default())
+        })
+        .apply();
 
     add(2, 3);
     multiply(2, 3);
